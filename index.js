@@ -262,6 +262,32 @@ app.get("/api/dashboard/transactions", async (req, res) => {
   }
 });
 
+// imgBB Image Upload Route
+const multer = require("multer");
+const upload = multer({ storage: multer.memoryStorage() });
+
+app.post("/api/upload", upload.single("image"), async (req, res) => {
+  try {
+    const formData = new FormData();
+    formData.append("image", req.file.buffer.toString("base64"));
+    
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${process.env.IMGBB_API_KEY}`, {
+      method: "POST",
+      body: formData,
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      res.json({ url: data.data.url, display_url: data.data.display_url });
+    } else {
+      res.status(500).json({ error: "Upload failed" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==================== START SERVER ====================
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
