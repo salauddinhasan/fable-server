@@ -3,7 +3,10 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 
+ 
+ 
 dotenv.config();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 
 // Middleware
@@ -239,6 +242,9 @@ app.get("/api/dashboard/writer/ebooks", async (req, res) => {
   }
 });
 
+// User's purchased ebooks
+ 
+
 // Get All Users (Admin)
 app.get("/api/dashboard/users", async (req, res) => {
   try {
@@ -288,6 +294,38 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
   }
 });
 
+
+app.post("/api/complete-purchase", async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    
+    // Stripe থেকে session data নিন
+    const session = await stripe.checkout.sessions.retrieve(session_id);
+    const { ebookId } = session.metadata;
+    const userEmail = session.customer_email; // Stripe-এ customer email
+
+    // Ebook আপডেট: sold = true, buyer = session.customer_email
+    await Ebook.findByIdAndUpdate(ebookId, {
+      sold: true,
+      buyerEmail: userEmail,
+      buyer: null, // পরে User ID দিতে পারেন
+    });
+
+    // Transaction রেকর্ড
+    const transaction = new Transaction({
+      transactionId: session.id,
+      type: "purchase",
+      userEmail: userEmail,
+      ebookTitle: session.metadata?.title || "Ebook",
+      amount: session.amount_total / 100,
+    });
+    await transaction.save();
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ==================== START SERVER ====================
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
