@@ -97,6 +97,19 @@ const transactionSchema = new mongoose.Schema(
 
 const Transaction = mongoose.model("Transaction", transactionSchema);
 
+const bookmarkSchema = new mongoose.Schema(
+  {
+    userEmail: { type: String, required: true },
+    ebookId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Ebook",
+      required: true,
+    },
+  },
+  { timestamps: true },
+);
+const Bookmark = mongoose.model("Bookmark", bookmarkSchema);
+
 // ==================== ROUTES ====================
 
 // Test Route
@@ -314,8 +327,8 @@ app.post("/api/complete-purchase", async (req, res) => {
 
     const ebookId = session.metadata?.ebookId;
     const email =
-      session.metadata?.userEmail ||  
-      session.customer_details?.email ||  
+      session.metadata?.userEmail ||
+      session.customer_details?.email ||
       "unknown@email.com";
     const amount = session.amount_total / 100;
     const title = session.metadata?.title || "Ebook";
@@ -360,6 +373,44 @@ app.get("/api/dashboard/user/purchases", async (req, res) => {
     const { email } = req.query;
     if (!email) return res.json([]);
     const ebooks = await Ebook.find({ buyerEmail: email, sold: true });
+    res.json(ebooks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add bookmark
+app.post("/api/bookmarks", async (req, res) => {
+  try {
+    const { email, ebookId } = req.body;
+    const exists = await Bookmark.findOne({ userEmail: email, ebookId });
+    if (exists) return res.json({ message: "Already bookmarked" });
+    const bookmark = new Bookmark({ userEmail: email, ebookId });
+    await bookmark.save();
+    res.status(201).json({ message: "Bookmarked" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Remove bookmark
+app.delete("/api/bookmarks", async (req, res) => {
+  try {
+    const { email, ebookId } = req.query;
+    await Bookmark.findOneAndDelete({ userEmail: email, ebookId });
+    res.json({ message: "Bookmark removed" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get user bookmarks (with full ebook details)
+app.get("/api/bookmarks", async (req, res) => {
+  try {
+    const { email } = req.query;
+    const bookmarks = await Bookmark.find({ userEmail: email });
+    const ebookIds = bookmarks.map((b) => b.ebookId);
+    const ebooks = await Ebook.find({ _id: { $in: ebookIds } });
     res.json(ebooks);
   } catch (err) {
     res.status(500).json({ error: err.message });
