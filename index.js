@@ -262,15 +262,15 @@ app.get("/api/dashboard/user/purchases", async (req, res) => {
 });
 
 // Get All Users (Admin)
-app.get("/api/dashboard/users", async (req, res) => {
-  try {
-    const db = mongoose.connection.db;
-    const users = await db.collection("users").find({}).toArray();
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// app.get("/api/dashboard/users", async (req, res) => {
+//   try {
+//     const db = mongoose.connection.db;
+//     const users = await db.collection("users").find({}).toArray();
+//     res.json(users);
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 // Get All Transactions (Admin)
 app.get("/api/dashboard/transactions", async (req, res) => {
@@ -417,7 +417,6 @@ app.get("/api/bookmarks", async (req, res) => {
   }
 });
 
-
 // Writer's sales history
 app.get("/api/dashboard/writer/sales", async (req, res) => {
   try {
@@ -425,6 +424,66 @@ app.get("/api/dashboard/writer/sales", async (req, res) => {
     if (!writerEmail) return res.json([]);
     const ebooks = await Ebook.find({ writerEmail, sold: true });
     res.json(ebooks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/dashboard/users", async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+     
+    const users = await db.collection("user").find({}).toArray();
+     
+    const safeUsers = users.map(({ password, ...user }) => user);
+    res.json(safeUsers);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+app.put("/api/dashboard/users/role", async (req, res) => {
+  try {
+    const { email, role } = req.body;
+    const db = mongoose.connection.db;
+    await db.collection("user").updateOne({ email }, { $set: { role } });
+    res.json({ message: "Role updated" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/dashboard/users", async (req, res) => {
+  try {
+    const { email } = req.query;
+    const db = mongoose.connection.db;
+    await db.collection("user").deleteOne({ email });
+    res.json({ message: "User deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// Temporary debug route
+app.get("/api/debug-users", async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+    const collections = await db.listCollections().toArray();
+    const collNames = collections.map((c) => c.name);
+
+    let userData = [];
+    if (collNames.includes("user")) {
+      userData = await db.collection("user").find({}).toArray();
+    } else if (collNames.includes("users")) {
+      userData = await db.collection("users").find({}).toArray();
+    }
+
+    res.json({
+      database: db.databaseName,
+      collections: collNames,
+      userCollectionExists:
+        collNames.includes("user") || collNames.includes("users"),
+      userData: userData,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
