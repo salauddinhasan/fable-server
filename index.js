@@ -432,9 +432,9 @@ app.get("/api/dashboard/writer/sales", async (req, res) => {
 app.get("/api/dashboard/users", async (req, res) => {
   try {
     const db = mongoose.connection.db;
-     
+
     const users = await db.collection("user").find({}).toArray();
-     
+
     const safeUsers = users.map(({ password, ...user }) => user);
     res.json(safeUsers);
   } catch (err) {
@@ -484,6 +484,39 @@ app.get("/api/debug-users", async (req, res) => {
         collNames.includes("user") || collNames.includes("users"),
       userData: userData,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Get all ebooks (published + unpublished)
+app.get("/api/admin/ebooks", async (req, res) => {
+  try {
+    const ebooks = await Ebook.find({}).sort({ createdAt: -1 });
+    res.json(ebooks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Toggle publish/unpublish
+app.put("/api/admin/ebooks/:id/toggle-status", async (req, res) => {
+  try {
+    const ebook = await Ebook.findById(req.params.id);
+    if (!ebook) return res.status(404).json({ error: "Not found" });
+    ebook.status = ebook.status === "published" ? "unpublished" : "published";
+    await ebook.save();
+    res.json(ebook);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Delete ebook
+app.delete("/api/admin/ebooks/:id", async (req, res) => {
+  try {
+    await Ebook.findByIdAndDelete(req.params.id);
+    res.json({ message: "Ebook deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
