@@ -3,10 +3,8 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 
- 
- 
 dotenv.config();
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const app = express();
 
 // Middleware
@@ -63,11 +61,8 @@ const ebookSchema = new mongoose.Schema(
       default: "published",
     },
     sold: { type: Boolean, default: false },
-    buyer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
+    buyer: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    buyerEmail: { type: String, default: "" },
   },
   { timestamps: true },
 );
@@ -86,7 +81,7 @@ const transactionSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
     },
     userEmail: String,
     ebook: {
@@ -243,7 +238,15 @@ app.get("/api/dashboard/writer/ebooks", async (req, res) => {
 });
 
 // User's purchased ebooks
- 
+app.get("/api/dashboard/user/purchases", async (req, res) => {
+  try {
+    const { email } = req.query;
+    const ebooks = await Ebook.find({ buyerEmail: email, sold: true });
+    res.json(ebooks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Get All Users (Admin)
 app.get("/api/dashboard/users", async (req, res) => {
@@ -276,14 +279,17 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
   try {
     const formData = new FormData();
     formData.append("image", req.file.buffer.toString("base64"));
-    
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${process.env.IMGBB_API_KEY}`, {
-      method: "POST",
-      body: formData,
-    });
-    
+
+    const response = await fetch(
+      `https://api.imgbb.com/1/upload?key=${process.env.IMGBB_API_KEY}`,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
+
     const data = await response.json();
-    
+
     if (data.success) {
       res.json({ url: data.data.url, display_url: data.data.display_url });
     } else {
@@ -294,34 +300,67 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
   }
 });
 
-
+// purchase complete route (এরকম হওয়া উচিত)
 app.post("/api/complete-purchase", async (req, res) => {
+  console.log("complete-purchase called, body:", req.body); // debug
   try {
     const { session_id } = req.body;
-    
-    // Stripe থেকে session data নিন
+    if (!session_id) {
+      return res.status(400).json({ error: "No session_id provided" });
+    }
+
     const session = await stripe.checkout.sessions.retrieve(session_id);
-    const { ebookId } = session.metadata;
-    const userEmail = session.customer_email; // Stripe-এ customer email
+    console.log("Stripe session:", JSON.stringify(session, null, 2)); // debug
 
-    // Ebook আপডেট: sold = true, buyer = session.customer_email
-    await Ebook.findByIdAndUpdate(ebookId, {
-      sold: true,
-      buyerEmail: userEmail,
-      buyer: null, // পরে User ID দিতে পারেন
-    });
+    const ebookId = session.metadata?.ebookId;
+    const email =
+      session.metadata?.userEmail ||  
+      session.customer_details?.email ||  
+      "unknown@email.com";
+    const amount = session.amount_total / 100;
+    const title = session.metadata?.title || "Ebook";
 
-    // Transaction রেকর্ড
+    if (!ebookId) {
+      return res.status(400).json({ error: "No ebookId in metadata" });
+    }
+
+    // Ebook update
+    const updatedEbook = await Ebook.findByIdAndUpdate(
+      ebookId,
+      {
+        sold: true,
+        buyerEmail: email,
+      },
+      { new: true },
+    );
+    console.log("Updated ebook:", updatedEbook); // debug
+
+    // Transaction save
     const transaction = new Transaction({
       transactionId: session.id,
       type: "purchase",
-      userEmail: userEmail,
-      ebookTitle: session.metadata?.title || "Ebook",
-      amount: session.amount_total / 100,
+      userEmail: email,
+      ebook: ebookId,
+      ebookTitle: title,
+      amount: amount,
     });
     await transaction.save();
+    console.log("Transaction saved");
 
-    res.json({ success: true });
+    res.json({ success: true, message: "Purchase completed" });
+  } catch (err) {
+    console.error("❌ Complete Purchase Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// User's purchased ebooks
+app.get("/api/dashboard/user/purchases", async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.json([]);
+    const ebooks = await Ebook.find({ buyerEmail: email, sold: true });
+    res.json(ebooks);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
