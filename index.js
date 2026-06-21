@@ -313,7 +313,7 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
   }
 });
 
-// purchase complete route (এরকম হওয়া উচিত)
+// purchase complete route  
 app.post("/api/complete-purchase", async (req, res) => {
   console.log("complete-purchase called, body:", req.body); // debug
   try {
