@@ -416,6 +416,19 @@ app.get("/api/bookmarks", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+// Writer's sales history
+app.get("/api/dashboard/writer/sales", async (req, res) => {
+  try {
+    const { writerEmail } = req.query;
+    if (!writerEmail) return res.json([]);
+    const ebooks = await Ebook.find({ writerEmail, sold: true });
+    res.json(ebooks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ==================== START SERVER ====================
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
