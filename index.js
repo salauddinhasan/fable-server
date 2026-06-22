@@ -261,17 +261,6 @@ app.get("/api/dashboard/user/purchases", async (req, res) => {
   }
 });
 
-// Get All Users (Admin)
-// app.get("/api/dashboard/users", async (req, res) => {
-//   try {
-//     const db = mongoose.connection.db;
-//     const users = await db.collection("users").find({}).toArray();
-//     res.json(users);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// });
-
 // Get All Transactions (Admin)
 app.get("/api/dashboard/transactions", async (req, res) => {
   try {
@@ -313,9 +302,8 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
   }
 });
 
-// purchase complete route  
+// purchase complete route
 app.post("/api/complete-purchase", async (req, res) => {
-  console.log("complete-purchase called, body:", req.body); // debug
   try {
     const { session_id } = req.body;
     if (!session_id) {
@@ -323,7 +311,6 @@ app.post("/api/complete-purchase", async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.retrieve(session_id);
-    console.log("Stripe session:", JSON.stringify(session, null, 2)); // debug
 
     const ebookId = session.metadata?.ebookId;
     const email =
@@ -346,7 +333,6 @@ app.post("/api/complete-purchase", async (req, res) => {
       },
       { new: true },
     );
-    console.log("Updated ebook:", updatedEbook); // debug
 
     // Transaction save
     const transaction = new Transaction({
@@ -358,7 +344,6 @@ app.post("/api/complete-purchase", async (req, res) => {
       amount: amount,
     });
     await transaction.save();
-    console.log("Transaction saved");
 
     res.json({ success: true, message: "Purchase completed" });
   } catch (err) {
@@ -459,31 +444,6 @@ app.delete("/api/dashboard/users", async (req, res) => {
     const db = mongoose.connection.db;
     await db.collection("user").deleteOne({ email });
     res.json({ message: "User deleted" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-// Temporary debug route
-app.get("/api/debug-users", async (req, res) => {
-  try {
-    const db = mongoose.connection.db;
-    const collections = await db.listCollections().toArray();
-    const collNames = collections.map((c) => c.name);
-
-    let userData = [];
-    if (collNames.includes("user")) {
-      userData = await db.collection("user").find({}).toArray();
-    } else if (collNames.includes("users")) {
-      userData = await db.collection("users").find({}).toArray();
-    }
-
-    res.json({
-      database: db.databaseName,
-      collections: collNames,
-      userCollectionExists:
-        collNames.includes("user") || collNames.includes("users"),
-      userData: userData,
-    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
