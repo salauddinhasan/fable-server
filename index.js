@@ -23,7 +23,7 @@ mongoose
   .connect(process.env.MONGODB_URL, {
     dbName: "fable_bd",
   })
-  .then(() => console.log("✅ MongoDB Connected to fable_bd"))
+  .then(() => console.log(" MongoDB Connected to fable_bd"))
   .catch((err) => console.error("❌ MongoDB Error:", err));
 
 // ==================== MODELS ====================
